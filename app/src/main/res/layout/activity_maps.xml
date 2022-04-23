@@ -12,7 +12,8 @@
         android:id="@+id/map"
         android:name="com.google.android.gms.maps.SupportMapFragment"
         map:layout_constraintTop_toTopOf="parent"
-        map:layout_constraintBottom_toTopOf="@+id/controls"/>
+        map:layout_constraintBottom_toTopOf="@+id/controls"
+        tools:layout="@android:layout/expandable_list_content" />
 
     <RelativeLayout
         android:layout_width="wrap_content"
