@@ -2,7 +2,10 @@ package com.rick.treasuremap
 
 import android.annotation.SuppressLint
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.location.Location
 import android.os.Bundle
@@ -31,9 +34,19 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         const val MINIMUM_RECOMMENDED_RADIUS = 100f // 1F = 1Meter on the map
         const val GEOFENCE_KEY = "TreasureLocation"
     }
+
     private val geofenceList = arrayListOf<Geofence>()
     private var treasureLocation: LatLng? = null
     private lateinit var geofencingClient: GeofencingClient
+
+    private val broadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(p0: Context?, p1: Intent?) {
+            endTreasureHunt()
+            Toast.makeText(this@MapsActivity, getString(R.string.treasure_found), Toast.LENGTH_LONG)
+                .show()
+        }
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,34 +67,39 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         geofencingClient = LocationServices.getGeofencingClient(this)
 
-    }
+        registerReceiver(broadcastReceiver, IntentFilter("GEOFENCE_ENTERED"))
 
+    }
 
     @SuppressLint("MissingPermission")
     private fun generateTreasureLocation() {
         val choiceList = listOf(true, false)
         var choice = choiceList.random()
-        val treasureLat = if (choice) lastLocation.latitude + Random.nextFloat() else lastLocation.latitude - Random.nextFloat()
+        val treasureLat =
+            if (choice) lastLocation.latitude + Random.nextFloat() else lastLocation.latitude - Random.nextFloat()
         choice = choiceList.random()
-        val treasureLng = if (choice) lastLocation.longitude + Random.nextFloat() else lastLocation.longitude - Random.nextFloat()
+        val treasureLng =
+            if (choice) lastLocation.longitude + Random.nextFloat() else lastLocation.longitude - Random.nextFloat()
         treasureLocation = LatLng(treasureLat, treasureLng)
 
         removeTreasureMarker()
-        geofenceList.add(Geofence.Builder()
-            .setRequestId(GEOFENCE_KEY)
-            .setCircularRegion(
-                treasureLat,
-                treasureLng,
-                MINIMUM_RECOMMENDED_RADIUS
-            )
-            .setExpirationDuration(Geofence.NEVER_EXPIRE)
-            .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
-            .build()
+        geofenceList.add(
+            Geofence.Builder()
+                .setRequestId(GEOFENCE_KEY)
+                .setCircularRegion(
+                    treasureLat,
+                    treasureLng,
+                    MINIMUM_RECOMMENDED_RADIUS
+                )
+                .setExpirationDuration(Geofence.NEVER_EXPIRE)
+                .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
+                .build()
         )
         try {
             geofencingClient.addGeofences(createGeofencingRequest(), createGeofencePendingIntent())
                 .addOnSuccessListener(this) {
-                    Toast.makeText(this, getString(R.string.begin_search), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.begin_search), Toast.LENGTH_SHORT)
+                        .show()
 
                     val circleOptions = CircleOptions()
                         .strokeColor(Color.DKGRAY)
@@ -92,14 +110,24 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                     //TODO: Start the timer and display an initial hint
                 }
                 .addOnFailureListener(this) {
-                    Toast.makeText(this, getString(R.string.treasure_error, it.message), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        getString(R.string.treasure_error, it.message),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
-        } catch (ignore: SecurityException) {}
+        } catch (ignore: SecurityException) {
+        }
     }
 
     private fun createGeofencePendingIntent(): PendingIntent {
         val intent = Intent(this, GeofenceBroadcastReceiver::class.java)
-        return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        return PendingIntent.getBroadcast(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
     }
 
     private fun createGeofencingRequest(): GeofencingRequest {
@@ -143,5 +171,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(broadcastReceiver)
     }
 }
