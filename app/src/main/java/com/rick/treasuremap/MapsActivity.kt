@@ -7,8 +7,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
+import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.location.*
@@ -18,7 +20,10 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.CircleOptions
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
 import com.rick.treasuremap.databinding.ActivityMapsBinding
+import java.io.IOException
 import kotlin.random.Random
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -47,6 +52,44 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    private fun endTreasureHunt() {
+        geofencingClient.removeGeofences(createGeofencePendingIntent()).run {
+            addOnSuccessListener {
+                geofenceList.clear()
+            }
+            addOnFailureListener {  }
+        }
+        if (treasureMarker == null) treasureMarker = placeMarkerOnMap(treasureLocation!!)
+        binding.treasureHuntBtn.text = getString(R.string.start_treasure_hunt)
+        binding.hintBtn.visibility = View.INVISIBLE
+        huntStarted = false
+        //TODO: Cancel the timer here
+        binding.timer.text = getString(R.string.hunt_ended)
+    }
+
+    private fun placeMarkerOnMap(treasureLocation: LatLng): Marker? {
+        val markerOptions = MarkerOptions()
+            .position(treasureLocation)
+            .title(getAddress(treasureLocation))
+        return map.addMarker(markerOptions)
+    }
+
+    private fun getAddress(latLng: LatLng): String? {
+        var addressText = getString(R.string.no_address)
+
+        try {
+            val addresses = Geocoder(this).getFromLocation(latLng.latitude, latLng.longitude, 1)
+            if (!addressText.isNullOrEmpty()) {
+                addressText = addresses[0].getAddressLine(0) ?: addressText
+            }
+        } catch (e:IOException){
+            addressText = getString(R.string.address_error)
+        }
+        return addressText
+    }
+
+    private var treasureMarker: Marker? = null
+    private var huntStarted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,6 +112,20 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         registerReceiver(broadcastReceiver, IntentFilter("GEOFENCE_ENTERED"))
 
+        binding.apply {
+            treasureHuntBtn.setOnClickListener {
+                when {
+                    !this@MapsActivity::lastLocation.isInitialized -> Toast.makeText(this@MapsActivity, getString(R.string.location_error), Toast.LENGTH_LONG).show()
+                    huntStarted -> endTreasureHunt()
+                    else -> {
+                        generateTreasureLocation()
+                        treasureHuntBtn.text = getString(R.string.end_the_treasuer_hunt)
+                        hintBtn.visibility = View.VISIBLE
+                        huntStarted = true
+                    }
+                }
+            }
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -117,6 +174,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                     ).show()
                 }
         } catch (ignore: SecurityException) {
+        }
+    }
+
+    private fun removeTreasureMarker() {
+        if (treasureMarker != null){
+            treasureMarker?.remove()
+            treasureMarker = null
         }
     }
 
