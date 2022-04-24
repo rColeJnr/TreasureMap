@@ -11,9 +11,13 @@ import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.os.Looper
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -27,6 +31,8 @@ import com.rick.treasuremap.databinding.ActivityMapsBinding
 import java.io.IOException
 import kotlin.random.Random
 
+
+@SuppressLint("MissingPermission")
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var map: GoogleMap
@@ -34,6 +40,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var lastLocation: Location
+
+    private var receivingLocationUpdates = false
+    private lateinit var locationCallback: LocationCallback
+    private lateinit var locationRequest: LocationRequest
 
 
     companion object {
@@ -142,7 +152,53 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
-    @SuppressLint("MissingPermission")
+    override fun onResume() {
+        super.onResume()
+        if (!receivingLocationUpdates) createLocationRequest()
+    }
+
+    private fun createLocationRequest() {
+        locationRequest = LocationRequest.create().apply {
+            interval = 10000
+            fastestInterval = 5000
+            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+        }
+        val locationSettingRequest = LocationSettingsRequest.Builder()
+            .addLocationRequest(locationRequest)
+            .build()
+        val client = LocationServices.getSettingsClient(this)
+        client.checkLocationSettings(locationSettingRequest).apply {
+            addOnSuccessListener {
+                receivingLocationUpdates = true
+                startLocationUpdates()
+            }
+            addOnFailureListener {
+                if (it is ResolvableApiException) {
+                    registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {result ->
+                        receivingLocationUpdates = true
+                        startLocationUpdates()
+                    }.launch(IntentSenderRequest.Builder(it.resolution).build())
+                }
+            }
+        }
+    }
+
+    private fun startLocationUpdates() {
+        try {
+            locationCallback = object : LocationCallback() {
+                override fun onLocationAvailability(p0: LocationAvailability) {
+
+                }
+
+                override fun onLocationResult(p0: LocationResult) {
+                    super.onLocationResult(p0)
+                    lastLocation = p0.lastLocation
+                }
+            }
+            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+        } catch (ignore: SecurityException) {}
+    }
+
     private fun generateTreasureLocation() {
         val choiceList = listOf(true, false)
         var choice = choiceList.random()
@@ -260,6 +316,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (this::locationCallback.isInitialized) fusedLocationClient.removeLocationUpdates(locationCallback)
     }
 
     override fun onDestroy() {
