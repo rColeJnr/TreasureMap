@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
+import android.os.CountDownTimer
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -43,6 +44,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private val geofenceList = arrayListOf<Geofence>()
     private var treasureLocation: LatLng? = null
     private lateinit var geofencingClient: GeofencingClient
+    private val timer = object : CountDownTimer(3600000, 1000) {
+        override fun onTick(p0: Long) {
+            binding.timer.text = getString(R.string.timer, p0 / 1000)
+        }
+
+        override fun onFinish() {
+            endTreasureHunt()
+            binding.timer.text = getString(R.string.times_up)
+        }
+    }
 
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(p0: Context?, p1: Intent?) {
@@ -63,7 +74,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.treasureHuntBtn.text = getString(R.string.start_treasure_hunt)
         binding.hintBtn.visibility = View.INVISIBLE
         huntStarted = false
-        //TODO: Cancel the timer here
+        timer.cancel()
         binding.timer.text = getString(R.string.hunt_ended)
     }
 
@@ -125,6 +136,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                     }
                 }
             }
+            hintBtn.setOnClickListener {
+                showHint()
+            }
         }
     }
 
@@ -164,7 +178,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                         .center(treasureLocation!!)
                         .radius(MINIMUM_RECOMMENDED_RADIUS.toDouble())
                     map.addCircle(circleOptions)
-                    //TODO: Start the timer and display an initial hint
+                    timer.start()
+                    showHint()
                 }
                 .addOnFailureListener(this) {
                     Toast.makeText(
@@ -207,6 +222,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         map.uiSettings.isZoomControlsEnabled = true
 
         prepareMap()
+    }
+
+    private fun showHint() {
+        if (treasureLocation != null && this::lastLocation.isInitialized) {
+            val latDir = if (treasureLocation!!.latitude > lastLocation.latitude) getString(R.string.north)
+            else getString(R.string.south)
+            val lonDir = if (treasureLocation!!.longitude > lastLocation.longitude) getString(R.string.east)
+            else getString(R.string.west)
+            Toast.makeText(this, getString(R.string.direction, latDir, lonDir), Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onRequestPermissionsResult(
