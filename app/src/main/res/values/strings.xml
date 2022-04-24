@@ -27,5 +27,5 @@
     <string name="west">West</string>
     <string name="east">East</string>
     <string name="south">South</string>
-    <string name="direction">Head %1$s %2$s</ string>
+    <string name="direction">Head %1$s %2$s</string>
 </resources>

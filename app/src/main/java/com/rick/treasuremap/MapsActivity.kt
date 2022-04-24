@@ -1,17 +1,22 @@
 package com.rick.treasuremap
 
 import android.annotation.SuppressLint
+import android.app.PendingIntent
+import android.content.Intent
+import android.graphics.Color
 import android.location.Location
 import android.os.Bundle
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.*
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.CircleOptions
 import com.google.android.gms.maps.model.LatLng
 import com.rick.treasuremap.databinding.ActivityMapsBinding
+import kotlin.random.Random
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -20,6 +25,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var lastLocation: Location
+
+
+    companion object {
+        const val MINIMUM_RECOMMENDED_RADIUS = 100f // 1F = 1Meter on the map
+        const val GEOFENCE_KEY = "TreasureLocation"
+    }
+    private val geofenceList = arrayListOf<Geofence>()
+    private var treasureLocation: LatLng? = null
+    private lateinit var geofencingClient: GeofencingClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,17 +51,64 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         if (!LocationPermissionHelper.hasLocationPermission(this)) LocationPermissionHelper.requestPermissions(
             this
         )
+
+        geofencingClient = LocationServices.getGeofencingClient(this)
+
     }
 
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
-     */
+
+    @SuppressLint("MissingPermission")
+    private fun generateTreasureLocation() {
+        val choiceList = listOf(true, false)
+        var choice = choiceList.random()
+        val treasureLat = if (choice) lastLocation.latitude + Random.nextFloat() else lastLocation.latitude - Random.nextFloat()
+        choice = choiceList.random()
+        val treasureLng = if (choice) lastLocation.longitude + Random.nextFloat() else lastLocation.longitude - Random.nextFloat()
+        treasureLocation = LatLng(treasureLat, treasureLng)
+
+        removeTreasureMarker()
+        geofenceList.add(Geofence.Builder()
+            .setRequestId(GEOFENCE_KEY)
+            .setCircularRegion(
+                treasureLat,
+                treasureLng,
+                MINIMUM_RECOMMENDED_RADIUS
+            )
+            .setExpirationDuration(Geofence.NEVER_EXPIRE)
+            .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
+            .build()
+        )
+        try {
+            geofencingClient.addGeofences(createGeofencingRequest(), createGeofencePendingIntent())
+                .addOnSuccessListener(this) {
+                    Toast.makeText(this, getString(R.string.begin_search), Toast.LENGTH_SHORT).show()
+
+                    val circleOptions = CircleOptions()
+                        .strokeColor(Color.DKGRAY)
+                        .fillColor(Color.TRANSPARENT)
+                        .center(treasureLocation!!)
+                        .radius(MINIMUM_RECOMMENDED_RADIUS.toDouble())
+                    map.addCircle(circleOptions)
+                    //TODO: Start the timer and display an initial hint
+                }
+                .addOnFailureListener(this) {
+                    Toast.makeText(this, getString(R.string.treasure_error, it.message), Toast.LENGTH_SHORT).show()
+                }
+        } catch (ignore: SecurityException) {}
+    }
+
+    private fun createGeofencePendingIntent(): PendingIntent {
+        val intent = Intent(this, GeofenceBroadcastReceiver::class.java)
+        return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+    }
+
+    private fun createGeofencingRequest(): GeofencingRequest {
+        return GeofencingRequest.Builder().apply {
+            setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+            addGeofences(geofenceList)
+        }.build()
+    }
+
     override fun onMapReady(googleMap: GoogleMap) {
         map = googleMap
 
