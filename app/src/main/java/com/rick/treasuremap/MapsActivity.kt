@@ -1,5 +1,7 @@
 package com.rick.treasuremap
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -7,6 +9,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
@@ -33,7 +39,7 @@ import kotlin.random.Random
 
 
 @SuppressLint("MissingPermission")
-class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
+class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListener {
 
     private lateinit var map: GoogleMap
     private lateinit var binding: ActivityMapsBinding
@@ -44,6 +50,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private var receivingLocationUpdates = false
     private lateinit var locationCallback: LocationCallback
     private lateinit var locationRequest: LocationRequest
+
+    private val accelerometerReading = FloatArray(3)
+    private val magnetometerReading = FloatArray(3)
+    private val rotationMatrix = FloatArray(9)
+    private val orientationAngles = FloatArray(3)
+    private var isRotating = false
+    private  lateinit var sensorManager: SensorManager
 
 
     companion object {
@@ -150,6 +163,26 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 showHint()
             }
         }
+
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+
+        sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.also { accelerometer ->
+            sensorManager.registerListener(
+                this,
+                accelerometer,
+                SensorManager.SENSOR_DELAY_NORMAL,
+                SensorManager.SENSOR_DELAY_UI
+            )
+        }
+
+        sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)?.also { magneticField ->
+            sensorManager.registerListener(
+                this,
+                magneticField,
+                SensorManager.SENSOR_DELAY_NORMAL,
+                SensorManager.SENSOR_DELAY_UI
+            )
+        }
     }
 
     override fun onResume() {
@@ -175,8 +208,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             addOnFailureListener {
                 if (it is ResolvableApiException) {
                     registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {result ->
-                        receivingLocationUpdates = true
-                        startLocationUpdates()
+                        if (result.resultCode == RESULT_OK){
+                            receivingLocationUpdates = true
+                            startLocationUpdates()
+                        }
                     }.launch(IntentSenderRequest.Builder(it.resolution).build())
                 }
             }
@@ -316,6 +351,40 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             }
         }
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event == null) return
+
+        when (event.sensor.type) {
+            Sensor.TYPE_ACCELEROMETER -> System.arraycopy(event.values, 0, accelerometerReading, 0, accelerometerReading.size)
+            Sensor.TYPE_MAGNETIC_FIELD -> System.arraycopy(event.values, 0, magnetometerReading, 0, magnetometerReading.size)
+        }
+        if (!isRotating) updateOrientationAngles()
+    }
+
+    private fun updateOrientationAngles() {
+        SensorManager.getRotationMatrix(rotationMatrix, null, accelerometerReading, magnetometerReading)
+        SensorManager.getOrientation(rotationMatrix, orientationAngles)
+        val degrees = (Math.toDegrees(orientationAngles[0].toDouble()))
+
+        val newRotation = degrees.toFloat() * -1
+        val rotationChange = newRotation - binding.compass.rotation
+
+        binding.compass.animate().apply {
+            isRotating = true
+            rotationBy(rotationChange)
+            duration = 500
+            setListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator?) {
+                    isRotating = false
+                }
+            })
+        }.start()
+    }
+
+    override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
+        TODO("Not yet implemented")
     }
 
     override fun onPause() {
