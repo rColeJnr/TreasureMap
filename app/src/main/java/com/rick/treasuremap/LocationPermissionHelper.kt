@@ -9,8 +9,7 @@ import androidx.core.content.ContextCompat
 
 object LocationPermissionHelper {
 
-    private const val BACKGROUND_LOCATION_PERMISSION =
-        Manifest.permission.ACCESS_BACKGROUND_LOCATION
+    private const val BACKGROUND_LOCATION_PERMISSION =Manifest.permission.ACCESS_BACKGROUND_LOCATION
     private const val COARSE_LOCATION_PERMISSION = Manifest.permission.ACCESS_COARSE_LOCATION
     private const val FINE_LOCATION_PERMISSION = Manifest.permission.ACCESS_FINE_LOCATION
 
@@ -19,10 +18,6 @@ object LocationPermissionHelper {
             activity,
             FINE_LOCATION_PERMISSION
         ) == PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(
-                    activity,
-                    COARSE_LOCATION_PERMISSION
-                ) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(
                     activity,
                     BACKGROUND_LOCATION_PERMISSION

@@ -37,8 +37,6 @@ import com.rick.treasuremap.databinding.ActivityMapsBinding
 import java.io.IOException
 import kotlin.random.Random
 
-
-@SuppressLint("MissingPermission")
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListener {
 
     private lateinit var map: GoogleMap
@@ -56,7 +54,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     private val rotationMatrix = FloatArray(9)
     private val orientationAngles = FloatArray(3)
     private var isRotating = false
-    private  lateinit var sensorManager: SensorManager
+    private lateinit var sensorManager: SensorManager
 
 
     companion object {
@@ -67,6 +65,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     private val geofenceList = arrayListOf<Geofence>()
     private var treasureLocation: LatLng? = null
     private lateinit var geofencingClient: GeofencingClient
+
     private val timer = object : CountDownTimer(3600000, 1000) {
         override fun onTick(p0: Long) {
             binding.timer.text = getString(R.string.timer, p0 / 1000)
@@ -86,44 +85,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         }
     }
 
-    private fun endTreasureHunt() {
-        geofencingClient.removeGeofences(createGeofencePendingIntent()).run {
-            addOnSuccessListener {
-                geofenceList.clear()
-            }
-            addOnFailureListener {  }
-        }
-        if (treasureMarker == null) treasureMarker = placeMarkerOnMap(treasureLocation!!)
-        binding.treasureHuntBtn.text = getString(R.string.start_treasure_hunt)
-        binding.hintBtn.visibility = View.INVISIBLE
-        huntStarted = false
-        timer.cancel()
-        binding.timer.text = getString(R.string.hunt_ended)
-    }
-
-    private fun placeMarkerOnMap(treasureLocation: LatLng): Marker? {
-        val markerOptions = MarkerOptions()
-            .position(treasureLocation)
-            .title(getAddress(treasureLocation))
-        return map.addMarker(markerOptions)
-    }
-
-    private fun getAddress(latLng: LatLng): String? {
-        var addressText = getString(R.string.no_address)
-
-        try {
-            val addresses = Geocoder(this).getFromLocation(latLng.latitude, latLng.longitude, 1)
-            if (!addressText.isNullOrEmpty()) {
-                addressText = addresses[0].getAddressLine(0) ?: addressText
-            }
-        } catch (e:IOException){
-            addressText = getString(R.string.address_error)
-        }
-        return addressText
-    }
-
-    private var treasureMarker: Marker? = null
-    private var huntStarted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -138,9 +99,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
-        if (!LocationPermissionHelper.hasLocationPermission(this)) LocationPermissionHelper.requestPermissions(
-            this
-        )
+        if(!LocationPermissionHelper.hasLocationPermission(this))LocationPermissionHelper.requestPermissions(this)
 
         geofencingClient = LocationServices.getGeofencingClient(this)
 
@@ -149,7 +108,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         binding.apply {
             treasureHuntBtn.setOnClickListener {
                 when {
-                    !this@MapsActivity::lastLocation.isInitialized -> Toast.makeText(this@MapsActivity, getString(R.string.location_error), Toast.LENGTH_LONG).show()
+                    !this@MapsActivity::lastLocation.isInitialized -> Toast.makeText(
+                        this@MapsActivity,
+                        getString(R.string.location_error),
+                        Toast.LENGTH_LONG
+                    ).show()
                     huntStarted -> endTreasureHunt()
                     else -> {
                         generateTreasureLocation()
@@ -185,6 +148,30 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         }
     }
 
+    private fun placeMarkerOnMap(treasureLocation: LatLng): Marker? {
+        val markerOptions = MarkerOptions()
+            .position(treasureLocation)
+            .title(getAddress(treasureLocation))
+        return map.addMarker(markerOptions)
+    }
+
+    private fun getAddress(latLng: LatLng): String? {
+        var addressText = getString(R.string.no_address)
+
+        try {
+            val addresses = Geocoder(this).getFromLocation(latLng.latitude, latLng.longitude, 1)
+            if (!addressText.isNullOrEmpty()) {
+                addressText = addresses[0].getAddressLine(0) ?: addressText
+            }
+        } catch (e: IOException) {
+            addressText = getString(R.string.address_error)
+        }
+        return addressText
+    }
+
+    private var treasureMarker: Marker? = null
+    private var huntStarted = false
+
     override fun onResume() {
         super.onResume()
         if (!receivingLocationUpdates) createLocationRequest()
@@ -207,8 +194,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
             }
             addOnFailureListener {
                 if (it is ResolvableApiException) {
-                    registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {result ->
-                        if (result.resultCode == RESULT_OK){
+                    registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+                        if (result.resultCode == RESULT_OK) {
                             receivingLocationUpdates = true
                             startLocationUpdates()
                         }
@@ -218,6 +205,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
         try {
             locationCallback = object : LocationCallback() {
@@ -230,10 +218,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
                     lastLocation = p0.lastLocation
                 }
             }
-            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-        } catch (ignore: SecurityException) {}
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                locationCallback,
+                Looper.getMainLooper()
+            )
+        } catch (ignore: SecurityException) {
+        }
     }
 
+    @SuppressLint("MissingPermission")
     private fun generateTreasureLocation() {
         val choiceList = listOf(true, false)
         var choice = choiceList.random()
@@ -284,7 +278,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     }
 
     private fun removeTreasureMarker() {
-        if (treasureMarker != null){
+        if (treasureMarker != null) {
             treasureMarker?.remove()
             treasureMarker = null
         }
@@ -317,11 +311,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
 
     private fun showHint() {
         if (treasureLocation != null && this::lastLocation.isInitialized) {
-            val latDir = if (treasureLocation!!.latitude > lastLocation.latitude) getString(R.string.north)
-            else getString(R.string.south)
-            val lonDir = if (treasureLocation!!.longitude > lastLocation.longitude) getString(R.string.east)
-            else getString(R.string.west)
-            Toast.makeText(this, getString(R.string.direction, latDir, lonDir), Toast.LENGTH_SHORT).show()
+            val latDir =
+                if (treasureLocation!!.latitude > lastLocation.latitude) getString(R.string.north)
+                else getString(R.string.south)
+            val lonDir =
+                if (treasureLocation!!.longitude > lastLocation.longitude) getString(R.string.east)
+                else getString(R.string.west)
+            Toast.makeText(this, getString(R.string.direction, latDir, lonDir), Toast.LENGTH_SHORT)
+                .show()
         }
     }
 
@@ -336,7 +333,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
             LocationPermissionHelper.requestPermissions(this)
         else prepareMap()
     }
-
 
     @SuppressLint("MissingPermission")
     private fun prepareMap() {
@@ -357,14 +353,31 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         if (event == null) return
 
         when (event.sensor.type) {
-            Sensor.TYPE_ACCELEROMETER -> System.arraycopy(event.values, 0, accelerometerReading, 0, accelerometerReading.size)
-            Sensor.TYPE_MAGNETIC_FIELD -> System.arraycopy(event.values, 0, magnetometerReading, 0, magnetometerReading.size)
+            Sensor.TYPE_ACCELEROMETER -> System.arraycopy(
+                event.values,
+                0,
+                accelerometerReading,
+                0,
+                accelerometerReading.size
+            )
+            Sensor.TYPE_MAGNETIC_FIELD -> System.arraycopy(
+                event.values,
+                0,
+                magnetometerReading,
+                0,
+                magnetometerReading.size
+            )
         }
         if (!isRotating) updateOrientationAngles()
     }
 
     private fun updateOrientationAngles() {
-        SensorManager.getRotationMatrix(rotationMatrix, null, accelerometerReading, magnetometerReading)
+        SensorManager.getRotationMatrix(
+            rotationMatrix,
+            null,
+            accelerometerReading,
+            magnetometerReading
+        )
         SensorManager.getOrientation(rotationMatrix, orientationAngles)
         val degrees = (Math.toDegrees(orientationAngles[0].toDouble()))
 
@@ -384,12 +397,29 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     }
 
     override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
-        TODO("Not yet implemented")
     }
+
+    private fun endTreasureHunt() {
+        geofencingClient.removeGeofences(createGeofencePendingIntent()).run {
+            addOnSuccessListener {
+                geofenceList.clear()
+            }
+            addOnFailureListener { }
+        }
+        if (treasureMarker == null) treasureMarker = placeMarkerOnMap(treasureLocation!!)
+        binding.treasureHuntBtn.text = getString(R.string.start_treasure_hunt)
+        binding.hintBtn.visibility = View.INVISIBLE
+        huntStarted = false
+        timer.cancel()
+        binding.timer.text = getString(R.string.hunt_ended)
+    }
+
 
     override fun onPause() {
         super.onPause()
-        if (this::locationCallback.isInitialized) fusedLocationClient.removeLocationUpdates(locationCallback)
+        if (this::locationCallback.isInitialized) fusedLocationClient.removeLocationUpdates(
+            locationCallback
+        )
     }
 
     override fun onDestroy() {
